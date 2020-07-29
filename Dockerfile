@@ -1,4 +1,4 @@
-FROM mdillon/postgis:latest
+FROM mdillon/postgis
 
 RUN mkdir -p /docker-entrypoint-initdb.d
 RUN mkdir -p /init
