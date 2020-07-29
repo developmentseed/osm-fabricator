@@ -1,0 +1,9 @@
+{
+  "name": "osm-fabricator",
+  "version": "0.1.0",
+  "description": "Simulate osm campaign statistics for OSMESA / Scoreboard",
+  "main": "index.js",
+  "repository": "git@github.com:developmentseed/osm-fabricator.git",
+  "author": "Marc Farra <marcfarra@gmail.com>",
+  "license": "MIT"
+}
