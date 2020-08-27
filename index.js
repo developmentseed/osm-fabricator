@@ -25,7 +25,7 @@ class Changeset {
 
 class Project { 
   constructor (tmData) {
-    this.id = tmData.meta.projectId
+    this.id = tmData.meta.projectId || tmData.meta.id
     this.meta = tmData.meta
     this.hashtag = extractCampaignHashtag(tmData.meta.changesetComment, this.id)
     this.contributions = tmData.contributions
@@ -62,9 +62,12 @@ class User {
   }
 }
 
-async function simulate() {
-  const tmData = await getAllProjects('https://tasks.openstreetmap.us')
+async function simulateOSM() {
+  const tmData = await getAllProjects('https://tasks.openstreetmap.us', 'tm')
   const projects = reject(isEmpty, tmData).map(p => new Project(p))
+  console.log(projects)
+  return
+
 
   const countries = await db('countries').select('id')
 
@@ -123,5 +126,21 @@ async function simulate() {
 	}
 }
 
+async function simulateMR() {
+  const tmData = await getAllProjects('https://maproulette.org', 'mr')
+  const projects = reject(isEmpty, tmData).map(p => {
+    p.meta.changesetComment = `#maproulette-challenge-${p.meta.id}`
+    return new Project(p)
+  })
+  //console.log(projects)
+
+}
+
+async function simulate() {
+  await simulateMR()
+  //return await simulateOSM()
+}
+
 // Simulate and cleanup
+//simulate().then(() => db.destroy())
 simulate().then(() => db.destroy())
