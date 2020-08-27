@@ -25,7 +25,7 @@ class Changeset {
 
 class Project { 
   constructor (tmData) {
-    this.id = tmData.meta.projectId || tmData.meta.id
+    this.id = tmData.meta.projectId || `${tmData.meta.id}`
     this.meta = tmData.meta
     this.hashtag = extractCampaignHashtag(tmData.meta.changesetComment, this.id)
     this.contributions = tmData.contributions
@@ -65,61 +65,14 @@ class User {
 async function simulateOSM() {
   const tmData = await getAllProjects('https://tasks.openstreetmap.us', 'tm')
   const projects = reject(isEmpty, tmData).map(p => new Project(p))
-  console.log(projects)
-  return
 
-
-  const countries = await db('countries').select('id')
-
-  let changesetCounter = 0
-
-  // for each project
   for (const pidx in projects) {
     try {
       let project = projects[pidx]
       process.stdout.clearLine(); process.stdout.cursorTo(0);
       console.log(`saving project #${project.hashtag}`)
       project = await project.save()
-
-      // pick a country
-      const country = chance.pickone(countries)
-
-      const countTypes = ['roads', 'waterways', 'coastlines', 'buildings', 'pois', 'raillines']
-      const measurementTypes = ['road', 'waterway', 'coastline', 'railline']
-
-      // for each contributor, create changesets
-      for (const idx in project.contributions) {
-        const contributor = project.contributions[idx]
-        const user = await new User(contributor.username).save()
-
-        for (let i = 0; i < (contributor.mapped + contributor.validated); i++) {
-          const editCount = chance.integer({ min: 1, max: 20 })
-
-          try {
-            process.stdout.write(`saving changeset #${changesetCounter} for user ${user.username}\r`)
-            const changeset = await new Changeset({
-              id: changesetCounter++,
-              measurements: {
-                [`${chance.pickone(measurementTypes)}_km_${chance.pickone(['added', 'modified', 'deleted'])}`]: chance.floating({ min: 0, max: 10 })
-              },
-              counts: {
-                [`${chance.pickone(countTypes)}_${chance.pickone(['added', 'modified', 'deleted'])}`]: editCount
-              },
-              total_edits: editCount,
-              editor: 'JOSM',
-              user_id: user.id,
-              created_at: project.meta.created,
-              closed_at: project.meta.created
-            }).save()
-
-            // join tables
-            await db('changesets_countries').insert({ changeset_id: changeset.id, country_id: country.id, edit_count: editCount })
-            await db('changesets_hashtags').insert({ changeset_id: changeset.id, hashtag_id: project.id })
-          } catch (e) {
-            console.error("Could not save changeset #" + changesetCounter, e) 
-          }
-        }
-      }
+      await produceChangesets(project)
     } catch (e) {
       console.error(`Could not save project ${projects[pidx].hashtag}`)
     }
@@ -132,15 +85,71 @@ async function simulateMR() {
     p.meta.changesetComment = `#maproulette-challenge-${p.meta.id}`
     return new Project(p)
   })
-  //console.log(projects)
 
+  for (const pidx in projects) {
+    try {
+      let project = projects[pidx]
+      process.stdout.clearLine(); process.stdout.cursorTo(0);
+      console.log(`saving project #${project.hashtag}`)
+      project = await project.save()
+      await produceChangesets(project)
+    } catch (e) {
+      console.log(e)
+      console.error(`Could not save project ${projects[pidx].hashtag}`)
+    }
+
+  }
 }
 
 async function simulate() {
   await simulateMR()
-  //return await simulateOSM()
+  return await simulateOSM()
+}
+
+async function produceChangesets(project) {
+  const countries = await db('countries').select('id')
+
+  let changesetCounter = 0
+
+  const country = chance.pickone(countries)
+
+  const countTypes = ['roads', 'waterways', 'coastlines', 'buildings', 'pois', 'raillines']
+  const measurementTypes = ['road', 'waterway', 'coastline', 'railline']
+
+  // for each contributor, create changesets
+  for (const idx in project.contributions) {
+    const contributor = project.contributions[idx]
+    const user = await new User(contributor.username).save()
+
+    for (let i = 0; i < (contributor.mapped + contributor.validated); i++) {
+      const editCount = chance.integer({ min: 1, max: 20 })
+
+      try {
+        process.stdout.write(`saving changeset #${changesetCounter} for user ${user.username}\r`)
+        const changeset = await new Changeset({
+          id: changesetCounter++,
+          measurements: {
+            [`${chance.pickone(measurementTypes)}_km_${chance.pickone(['added', 'modified', 'deleted'])}`]: chance.floating({ min: 0, max: 10 })
+          },
+          counts: {
+            [`${chance.pickone(countTypes)}_${chance.pickone(['added', 'modified', 'deleted'])}`]: editCount
+          },
+          total_edits: editCount,
+          editor: 'JOSM',
+          user_id: user.id,
+          created_at: project.meta.created,
+          closed_at: project.meta.created
+        }).save()
+
+        // join tables
+        await db('changesets_countries').insert({ changeset_id: changeset.id, country_id: country.id, edit_count: editCount })
+        await db('changesets_hashtags').insert({ changeset_id: changeset.id, hashtag_id: project.id })
+      } catch (e) {
+        console.error("Could not save changeset #" + changesetCounter, e) 
+      }
+    }
+  }
 }
 
 // Simulate and cleanup
-//simulate().then(() => db.destroy())
 simulate().then(() => db.destroy())

@@ -37,7 +37,7 @@ async function getContributions (apiUrl, project) {
 
   const users = JSON.parse(userData).map(user => {
     const userObj = {
-      userName: user.name,
+      username: user.name,
       mapped: user.completedTasks,
       validated: 0
     }
